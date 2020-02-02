@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>江西疫情</title>
+    <script>
+       
+    </script>
+    <script src="./js/html2canvas.min.js"></script>
+    <script src="./js/canvas2image.js"></script>
+    <script src="./js/echarts.min.js"></script>
+    <!-- <script src="https://cdn.bootcss.com/jquery/3.4.1/jquery.js"></script> -->
+    <script src="./data/jx.js"></script>
+    <script src="./data/jxCity.js"></script>
+
+    <script src="./js/jquery.js"></script>
+    <script src="./js/index.js"></script>
+</head>
+<body>
+    <span id="content">
+        <div id="main"  class="main" style="width: 600px; height: 400px;">
+            画布
+        </div>
+        <div class="desc">
+            <!-- <img src="./img/desc.jpg" alt=""> -->
+        </div>
+    </span>
+    <select name="" id="citySelect" onchange="selectChange(this.value)">
+        <option value="1">1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+    </select>
+    <!-- <button onclick="toImage()">生成图片</button> -->
+    <div id="test" class="img"></div>
+</body>
+<script>
+ 
+
+  function toImage() {
+       convertToImage(document.querySelector('#content'), {
+            width: '600px',
+            height: '400px'
+        }).then((data)=> {
+            console.log(data, 'data');
+            $('#test').html(data);
+            // dataURIToBlob(data);
+        });
+     };
+
+  function selectChange(value){
+        getGeo(value);
+  }
+  var dataObj = {};
+
+  function getAreas(data, city) {
+    if(dataObj[city.code])  return; 
+    dataObj[city.code] = {
+        name: city.name,
+        cities: []
+    };
+    data.features.forEach(item => {
+        name = item.properties.name;
+        code = item.properties.adcode;
+        dataObj[city.code].cities.push({name: name, code: code});
+    });
+  };
+
+  function getGeo(code, name) {
+     if (!code) {
+        code = '360000';
+        name = '江西省' 
+     };
+     
+      $.get("https://geo.datav.aliyun.com/areas/bound/" + code +"_full.json", function(data) {
+            echarts.registerMap('jx', data);
+            getData(code).then(function(mapData) {
+                myChart.hideLoading();
+                myChart.setOption(option = {
+                title: {
+                    text: '',
+                    subtext: '',
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: '{b}<br/>{c} (人)'
+                },
+                toolbox: {
+                    show: true,
+                    orient: 'vertical',
+                    left: 'right',
+                    top: 'center',
+                    feature: {
+                        dataView: {readOnly: false},
+                        restore: {},
+                        saveAsImage: {}
+                    }
+                },
+                visualMap: {
+                    type: 'piecewise',
+                    min: 0,
+                    max: 100,
+                    splitNumber: 5,
+                    color: ['#AA0000', '#CC3333', '#FFCC66'],
+                    textStyle: {
+                        color: '#000'
+                    }
+                },
+                series: [
+                    {
+                        name: '疫情地图',
+                        type: 'map',
+                        mapType: 'jx', // 自定义扩展图表类型
+                        label: {
+                            normal: {
+                                show: true,
+                                formatter: function (params) {
+                                    return params.name+ "\n" + params.value + "例";    //地图上展示文字 + 数值
+                                },
+                            }
+                        },
+                        data: mapData,
+                        // 自定义名称映射
+                        nameMap: {
+                        }
+                    }
+                ]
+            });
+            })
+        });
+};
+
+function init() {
+    getGeo();
+    clickHandler();
+    setOptions();
+};
+
+function getData(code) {
+     return new Promise(function(relsove, reject) {
+                    if (code=='360000') {
+                    $.get('https://lab.isaaclin.cn/nCoV/api/area?latest=1&province=' + "江西省", function(data){
+                        confirmedCount = data.results[0].confirmedCount;
+                        data.results[0].cities.forEach((city) => {
+                            jx.forEach((it) => {
+                                if(it.name === (city.cityName + '市')) {
+                                    it.value = city.confirmedCount;
+                                }          
+                            });
+                        });
+                        relsove(jx);
+                    });
+                } else {
+                    relsove(jxCity[code].cities);
+                }
+    })
+};
+
+function clickHandler(){
+    myChart.on('dblclick', function (params) {
+        jx.some(it => {
+            if(it.code === params.data.code) {
+                getGeo(it.code);
+                return true;
+            };
+        })
+    });
+}
+
+function setOptions() {
+    var optionHtml = '<option value ="360000">江西省</option>';
+    jx.forEach((it) => {
+        optionHtml += '<option value ='+ it.code +'>' + it.name + '</option>';
+    });
+    $('#citySelect').html(optionHtml);
+}
+
+// 创建用于绘制的基础canvas画布
+function createBaseCanvas(scale, width, height) {
+    var canvas = document.createElement("canvas");
+    canvas.style.width = width / scale;
+    canvas.style.height = height / scale;
+
+    canvas.width = width;
+    canvas.height = height;
+
+    canvas.width = width * scale;
+    canvas.height = height * scale;
+ 
+    var context = canvas.getContext("2d");
+    // canvas.getContext("2d").scale(scale, scale);
+     // 关闭抗锯齿
+     context.mozImageSmoothingEnabled = false;
+    context.webkitImageSmoothingEnabled = false;
+    context.msImageSmoothingEnabled = false;
+    context.imageSmoothingEnabled = false;
+
+    return canvas;
+}
+
+// 生成快照
+function convertToImage(container, options = {}) {
+    // 设置放大倍数
+    var scale = window.devicePixelRatio;
+
+    
+
+    // 传入节点原始宽高
+    var width = container.offsetWidth;
+    var height = container.offsetHeight;   
+
+    // 创建用于绘制的基础canvas画布
+    var canvas = createBaseCanvas(scale, width, height);
+
+    // html2canvas配置项
+    var ops = {
+        scale,
+        width,
+        height,
+        canvas,
+        useCORS: true,
+        allowTaint: false,
+        ...options
+    };
+
+    return html2canvas(container, ops).then(canvas => {
+        var imageEl = Canvas2Image.convertToPNG(canvas, canvas.width, canvas.height);
+        return imageEl;
+    });
+}
+
+function dataURIToBlob(dataURI, callback) {
+  var binStr = atob(dataURI.split(',')[1]),
+    len = binStr.length,
+    arr = new Uint8Array(len);
+
+  for (var i = 0; i < len; i++) {
+    arr[i] = binStr.charCodeAt(i);
+  }
+
+  download(new Blob([arr]));
+};
+
+var download = function(blob, fileName) {
+    var a = document.createElement('a');
+    a.download = fileName || 'test';
+    a.innerHTML = 'download';
+    // the string representation of the object URL will be small enough to workaround the browser's limitations
+    a.href = URL.createObjectURL(blob);
+    // you must revoke the object URL, 
+    //   but since we can't know when the download occured, we have to attach it on the click handler..
+    a.onclick = function() {
+      // ..and to wait a frame
+      requestAnimationFrame(function() {
+          URL.revokeObjectURL(a.href);
+        });
+        a.removeAttribute('href')
+      };
+    a.click();
+};
+
+// 五分钟更新全省疫情数据
+setInterval(function(){
+    getData('360000');
+}, 50000);
+
+// 基于准备好的dom，初始化echarts实例想
+var myChart = echarts.init(document.getElementById('main'));
+// console.log(myChart, '---XXX');
+myChart.showLoading();
+init();
+   
+</script>
+<style>
+    #content {
+        display: inline-block;
+    }
+    .main {
+        background-color: #e6e3e3;
+        width: 600px;
+        height: 400px;
+    }
+    .desc img{
+        width: 600px;
+    }
+    .img {
+        width: 600px;
+    }
+    .img img {
+        width: auto;
+        height: auto;
+        max-width: 100%;
+        max-height: 100%; 
+    }
+</style>
+</html>
