@@ -100,7 +100,7 @@
                 visualMap: {
                     type: 'piecewise',
                     min: 0,
-                    max: 100,
+                    max: 150,
                     splitNumber: 5,
                     color: ['#AA0000', '#CC3333', '#FFCC66'],
                     textStyle: {
@@ -263,7 +263,7 @@ var download = function(blob, fileName) {
 // 五分钟更新全省疫情数据
 setInterval(function(){
     getData('360000');
-}, 50000);
+}, 80000);
 
 // 基于准备好的dom，初始化echarts实例想
 var myChart = echarts.init(document.getElementById('main'));
